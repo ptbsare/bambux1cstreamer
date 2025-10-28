@@ -20,12 +20,12 @@
 最新的beta版本镜像会自动构建并推送到GitHub容器仓库(ghcr.io)。
 
 1.  **运行 Docker 容器:**
-    请将 `YOUR_PRINTER_IP` 替换为你的拓竹打印机的实际IP地址。
+    请将 `PRINTER_IP` 和 `LAN_ACCESS_CODE` 替换为你的拓竹打印机的实际IP地址和局域网访问码。
     ```bash
     docker run -d \
       --name bambu-streamer \
       -p 33002:33002 \
-      -e RTSP_URL="rstsps://YOUR_PRINTER_IP/bbl_liveview/stream" \
+      -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
       --restart unless-stopped \
       ghcr.io/ptbsare/bambux1cstreamer:beta
     ```

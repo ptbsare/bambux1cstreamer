@@ -1,5 +1,5 @@
 # --- Build Stage ---
-FROM python:3.9-slim as builder
+FROM python:3.13-slim as builder
 
 # 安装 uv
 RUN pip install uv
@@ -11,7 +11,7 @@ RUN uv venv
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    libgl1-mesa-glx \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖到虚拟环境中
@@ -19,7 +19,7 @@ COPY requirements.txt .
 RUN . .venv/bin/activate && uv pip install --no-cache-dir -r requirements.txt
 
 # --- Final Stage ---
-FROM python:3.9-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
