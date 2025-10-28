@@ -20,12 +20,12 @@ A lightweight, self-hosted proxy to re-stream the RTSPS video from a Bambu Lab X
 The latest beta image is automatically built and pushed to Docker Hub.
 
 1.  **Run the Docker container:**
-    Replace `YOUR_PRINTER_IP` with your Bambu Lab printer's IP address.
+    Replace `PRINTER_IP` and `LAN_ACCESS_CODE` with your Bambu Lab printer's IP address and access code.
     ```bash
     docker run -d \
       --name bambu-streamer \
       -p 33002:33002 \
-      -e RTSP_URL="rstsps://YOUR_PRINTER_IP/bbl_liveview/stream" \
+      -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
       --restart unless-stopped \
       ghcr.io/ptbsare/bambux1cstreamer:beta
     ```
