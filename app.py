@@ -95,13 +95,17 @@ class StreamManager:
                     continue
 
                 logger.info("RTSP stream connected successfully.")
+                first_frame_logged = False
                 while True:
-                    # Read frame first
                     # Read frame and its original timestamp from the stream
                     ret, frame = await loop.run_in_executor(None, cap.read)
                     if not ret:
                         logger.warning("Failed to read frame from stream. Reconnecting...")
                         break
+
+                    if not first_frame_logged:
+                        logger.info(f"Video source resolution: {frame.shape[1]}x{frame.shape[0]}")
+                        first_frame_logged = True
                     
                     rtsp_timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
                     
