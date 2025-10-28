@@ -17,9 +17,11 @@
 
 ### 使用预构建的Docker镜像
 
-最新的beta版本镜像会自动构建并推送到GitHub容器仓库(ghcr.io)。
+我们在 GitHub 容器仓库 (GHCR) 上提供了两个主要的镜像标签：
+- `latest`: 最新的稳定发行版，推荐大多数用户使用。
+- `beta`: 基于`main`分支的最新代码自动构建，用于测试新功能。
 
-1.  **运行 Docker 容器:**
+1.  **运行 Docker 容器 (推荐):**
     请将 `PRINTER_IP` 和 `LAN_ACCESS_CODE` 替换为你的拓竹打印机的实际IP地址和局域网访问码。
     ```bash
     docker run -d \
@@ -27,7 +29,7 @@
       -p 33002:33002 \
       -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
       --restart unless-stopped \
-      ghcr.io/ptbsare/bambux1cstreamer:beta
+      ghcr.io/ptbsare/bambux1cstreamer:latest
     ```
 
 2.  **观看视频流:**

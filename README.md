@@ -11,15 +11,17 @@ A lightweight, self-hosted proxy to re-stream the RTSPS video from a Bambu Lab X
 - **Automatic Reconnection**: If the connection to the printer is lost, the application will automatically try to reconnect.
 - **Easy Deployment**: Optimized for Docker, allowing for quick and easy setup.
 - **Embeddable Web Interface**: Provides a clean, simple web page to view the live stream, which can be easily embedded in other applications like Home Assistant using an iframe.
-- **CI/CD Ready**: Includes a GitHub Actions workflow to automatically build and publish a `beta` image to Docker Hub on every push to the `main` branch.
+- **CI/CD Ready**: Includes a GitHub Actions workflow to automatically build and publish a `beta` image to GitHub Container Registry (GHCR) on every push to the `main` branch.
 
 ## How to Use
 
-### Using the Pre-built Docker Image
+### Using Pre-built Docker Images
 
-The latest beta image is automatically built and pushed to Docker Hub.
+We provide two main image tags on GitHub Container Registry:
+- `latest`: The latest stable release. Recommended for most users.
+- `beta`: Built automatically from the latest commit on the `main` branch. Use this for testing new features.
 
-1.  **Run the Docker container:**
+1.  **Run the Docker container (Recommended):**
     Replace `PRINTER_IP` and `LAN_ACCESS_CODE` with your Bambu Lab printer's IP address and access code.
     ```bash
     docker run -d \
@@ -27,7 +29,7 @@ The latest beta image is automatically built and pushed to Docker Hub.
       -p 33002:33002 \
       -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
       --restart unless-stopped \
-      ghcr.io/ptbsare/bambux1cstreamer:beta
+      ghcr.io/ptbsare/bambux1cstreamer:latest
     ```
 
 2.  **View the stream:**
