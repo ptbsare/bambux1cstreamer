@@ -46,5 +46,5 @@ The latest beta image is automatically built and pushed to Docker Hub.
 
 | Variable    | Description                                                                 | Default                               |
 |-------------|-----------------------------------------------------------------------------|---------------------------------------|
-| `RTSP_URL`  | **Required**. The full RTSPS URL of your Bambu Lab printer's live stream.     | `rstsps://your_printer_ip/bbl_liveview/stream` (placeholder) |
+| `RTSP_URL`  | **Required**. The full RTSPS URL of your Bambu Lab printer's live stream.     | `rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1` (placeholder) |
 | `WEB_PORT`  | The port on which the web server will listen inside the container.          | `33002`                               |

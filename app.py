@@ -12,7 +12,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
 
 # --- Configuration ---
-RTSP_URL = os.environ.get("RTSP_URL", "rstsps://your_printer_ip/bbl_liveview/stream")
+RTSP_URL = os.environ.get("RTSP_URL", "rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1")
 WEB_PORT = int(os.environ.get("WEB_PORT", 33002))
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|tls_verify;0"
 
