@@ -189,9 +189,47 @@ async def index(request):
                 height: 100%;
                 object-fit: contain;
             }
+            #loader {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: #000;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 10;
+                transition: opacity 0.5s ease-out;
+            }
+            .pie-container {
+                width: 90px;
+                height: 90px;
+                border-radius: 50%;
+                background-image: conic-gradient(
+                    rgba(255, 255, 255, 0.8) var(--progress, 0deg),
+                    rgba(255, 255, 255, 0.2) var(--progress, 0deg)
+                );
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: background-image 0.1s linear;
+            }
+            #percentage {
+                color: #fff;
+                font-size: 1.5em;
+                font-family: sans-serif;
+                font-weight: bold;
+            }
         </style>
     </head>
     <body>
+        <div id="loader">
+            <div class="pie-container">
+                <span id="percentage">0%</span>
+            </div>
+        </div>
         <video id="video" autoplay playsinline muted></video>
         <script src="/client.js"></script>
     </body>
@@ -203,6 +241,43 @@ async def javascript(request):
     js_content = """
     let pc;
     const video = document.getElementById('video');
+    const loader = document.getElementById('loader');
+    const percentage = document.getElementById('percentage');
+    const pieContainer = document.querySelector('.pie-container');
+    let progress = 0;
+    let timer;
+
+    function startLoadingAnimation() {
+        progress = 0;
+        percentage.textContent = '0%';
+        pieContainer.style.setProperty('--progress', '0deg');
+        loader.style.opacity = 1;
+        loader.style.display = 'flex';
+
+        // Simulate loading progress over ~5 seconds
+        timer = setInterval(() => {
+            progress += 1;
+            if (progress <= 100) {
+                const angle = progress * 3.6;
+                percentage.textContent = Math.round(progress) + '%';
+                pieContainer.style.setProperty('--progress', `${angle}deg`);
+            } else {
+                clearInterval(timer);
+            }
+        }, 40); // Update every 40ms for a 4-second 100%
+    }
+
+    video.addEventListener('playing', () => {
+        console.log('Video is playing.');
+        clearInterval(timer); // Stop the timer
+        percentage.textContent = '100%';
+        pieContainer.style.setProperty('--progress', '360deg');
+        // Fade out the loader
+        loader.style.opacity = 0;
+        setTimeout(() => {
+            loader.style.display = 'none';
+        }, 500); // Hide after fade out animation
+    });
 
     function createPeerConnection() {
         pc = new RTCPeerConnection({ sdpSemantics: 'unified-plan' });
@@ -225,6 +300,8 @@ async def javascript(request):
 
     async function start() {
         console.log('Attempting to connect...');
+        startLoadingAnimation();
+        
         if(pc) {
             pc.close();
         }
