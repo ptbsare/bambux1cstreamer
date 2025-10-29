@@ -23,8 +23,8 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Set environment variables for Python
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Install Python dependencies
 COPY requirements.txt .
