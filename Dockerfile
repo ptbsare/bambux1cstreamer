@@ -1,43 +1,57 @@
-# --- Build Stage ---
-FROM python:3.13-slim as builder
+# --- Build Stage for Go ---
+FROM golang:1.25-alpine AS builder
 
-# 安装 uv
-RUN pip install uv
-
-# 创建虚拟环境
 WORKDIR /app
-RUN uv venv
 
-# 安装系统依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+# Copy Go module files and download dependencies
+COPY go.mod go.sum ./
+RUN go mod download
 
-# 安装 Python 依赖到虚拟环境中
-COPY requirements.txt .
-RUN . .venv/bin/activate && uv pip install --no-cache-dir -r requirements.txt
+# Copy the Go source code
+COPY main.go .
+COPY static ./static
 
-# --- Final Stage ---
+# Build the Go application
+# CGO_ENABLED=0 is important for creating a static binary
+# -ldflags "-s -w" strips debug information to reduce binary size
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /bambux1cstreamer-go main.go
+
+
+# --- Final Stage for Python and Go ---
 FROM python:3.13-slim
 
 WORKDIR /app
 
-# 从构建阶段复制虚拟环境
-COPY --from=builder /app/.venv .venv
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# 复制应用程序代码
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the Python application
 COPY app.py .
 
-# 将虚拟环境的 bin 目录添加到 PATH
-ENV PATH="/app/.venv/bin:$PATH"
+# Copy the compiled Go application from the builder stage
+COPY --from=builder /bambux1cstreamer-go /usr/local/bin/bambux1cstreamer-go
 
-# 暴露 Web 服务的端口
-EXPOSE 33002
+# Copy the static files for the Go application
+COPY --from=builder /app/static ./static
 
-# 设置默认的环境变量
-ENV RTSP_URL="rstsps://your_printer_ip/bbl_liveview/stream"
-ENV WEB_PORT="33002"
+# Copy the entrypoint script and make it executable
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
-# 使用虚拟环境中的 python 启动应用程序
-CMD ["python", "app.py"]
+# Set default streamer version to "go"
+ENV STREAMER_VERSION=go
+# Set default web port
+ENV WEB_PORT=33002
+# Set a placeholder RTSP URL. Users MUST override this.
+ENV RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1"
+
+# Expose the default port
+EXPOSE ${WEB_PORT}
+
+# The entrypoint script will decide which application to run
+ENTRYPOINT ["./entrypoint.sh"]

@@ -6,6 +6,7 @@ import json
 import time
 import collections
 import numpy as np
+import re
 from fractions import Fraction
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
@@ -364,6 +365,53 @@ async def offer(request):
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
+    # Modify SDP to suggest a higher bitrate for H264
+    # Default aiortc encoding settings can be too low for 1080p, causing pixelation.
+    # We are suggesting a start bitrate of 2500 kbps and a max of 4000 kbps.
+    # The WebRTC engine may still override this based on network conditions.
+    try:
+        bitrate_kbps = 4000
+        min_bitrate_kbps = 2500
+        sdp_lines = answer.sdp.splitlines()
+        h264_payload_type = None
+        for line in sdp_lines:
+            if line.lower().startswith("a=rtpmap:") and "h264" in line.lower():
+                match = re.search(r"a=rtpmap:(\d+)", line, re.IGNORECASE)
+                if match:
+                    h264_payload_type = match.group(1)
+                    break
+        
+        if h264_payload_type:
+            # Find the format parameter line and add bitrate info
+            fmtp_line_index = -1
+            for i, line in enumerate(sdp_lines):
+                if line.startswith(f"a=fmtp:{h264_payload_type}"):
+                    fmtp_line_index = i
+                    break
+            
+            if fmtp_line_index > -1:
+                sdp_lines[fmtp_line_index] += f";x-google-start-bitrate={min_bitrate_kbps};x-google-max-bitrate={bitrate_kbps}"
+                answer.sdp = "\r\n".join(sdp_lines) + "\r\n"
+                logger.info(f"Modified SDP to suggest H264 bitrate up to {bitrate_kbps} kbps.")
+            # If fmtp line doesn't exist, we might need to add it.
+            else:
+                # This case is less common, but let's handle it.
+                rtpmap_line_index = -1
+                for i, line in enumerate(sdp_lines):
+                    if line.startswith(f"a=rtpmap:{h264_payload_type}"):
+                        rtpmap_line_index = i
+                        break
+                if rtpmap_line_index > -1:
+                    # Note: profile-level-id=42e01f corresponds to Constrained Baseline Profile Level 3.1.
+                    # This is a safe default.
+                    fmtp_line = f"a=fmtp:{h264_payload_type} packetization-mode=1;level-asymmetry-allowed=1;profile-level-id=42e01f;x-google-start-bitrate={min_bitrate_kbps};x-google-max-bitrate={bitrate_kbps}"
+                    sdp_lines.insert(rtpmap_line_index + 1, fmtp_line)
+                    answer.sdp = "\r\n".join(sdp_lines) + "\r\n"
+                    logger.info(f"Added SDP fmtp line to suggest H264 bitrate up to {bitrate_kbps} kbps.")
+
+    except Exception as e:
+        logger.warning(f"Could not modify SDP for bitrate: {e}")
+
     await pc.setLocalDescription(answer)
 
     return web.Response(
