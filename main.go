@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"net"
+
 	"net/http"
 	"os"
 	"strconv"
@@ -207,21 +207,6 @@ func main() {
 		webrtc.NetworkTypeTCP4,
 	})
 
-	webrtcAPI = webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine), webrtc.WithSettingEngine(settingEngine))
-
-	// Set the listen address for the ICE agent
-	// This is crucial for Docker environments where the container's internal IP is not accessible from the outside.
-	udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP(listenAddress),
-		Port: 0, // Listen on a random port, the mux will handle it
-	})
-	if err != nil {
-		log.Fatalf("Failed to create UDP listener: %v", err)
-	}
-
-	udpMux := webrtc.NewICEUDPMux(nil, udpListener)
-	settingEngine.SetICEUDPMux(udpMux)
-
 	if webrtcPortMin > 0 && webrtcPortMax > 0 {
 		if webrtcPortMin > webrtcPortMax {
 			log.Fatal("WEBRTC_UDP_PORT_MIN cannot be greater than WEBRTC_UDP_PORT_MAX")
@@ -230,10 +215,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to set WebRTC port range: %v", err)
 		}
-		log.Printf("WebRTC UDP port range set to %d-%d on %s", webrtcPortMin, webrtcPortMax, listenAddress)
+		log.Printf("WebRTC UDP port range set to %d-%d", webrtcPortMin, webrtcPortMax)
 	} else {
-		log.Printf("WebRTC UDP port range is not configured, using random ports on %s", listenAddress)
+		log.Printf("WebRTC UDP port range is not configured, using random ports")
 	}
+
+	webrtcAPI = webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine), webrtc.WithSettingEngine(settingEngine))
 
 	u, err := base.ParseURL(rtspURL)
 	if err != nil {
