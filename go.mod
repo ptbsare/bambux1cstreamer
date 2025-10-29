@@ -1,6 +1,6 @@
 module bambux1cstreamer
 
-go 1.18
+go 1.24.0
 
 require (
 	github.com/bluenviron/gortsplib/v5 v5.1.1

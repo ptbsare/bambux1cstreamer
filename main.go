@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -20,8 +22,12 @@ import (
 
 // --- Configuration ---
 var (
-	rtspURL = os.Getenv("RTSP_URL")
-	webPort = "33003" // Use a different port than the python version
+	rtspURL       = os.Getenv("RTSP_URL")
+	webPort       = "33003" // Use a different port than the python version
+	webrtcPortMin uint16
+	webrtcPortMax uint16
+	listenAddress = "" // Listen on all interfaces by default (IPv4 and IPv6)
+	webrtcAPI     *webrtc.API
 )
 
 // StreamManager manages a single RTSP connection and broadcasts H264 frames to multiple listeners.
@@ -160,6 +166,74 @@ func main() {
 	if p := os.Getenv("WEB_PORT"); p != "" {
 		webPort = p
 	}
+	if l := os.Getenv("WEBRTC_LISTEN_ADDRESS"); l != "" {
+		listenAddress = l
+	}
+	if minPortStr := os.Getenv("WEBRTC_UDP_PORT_MIN"); minPortStr != "" {
+		minPort, err := strconv.ParseUint(minPortStr, 10, 16)
+		if err == nil {
+			webrtcPortMin = uint16(minPort)
+		} else {
+			log.Printf("Invalid WEBRTC_UDP_PORT_MIN value: %v", err)
+		}
+	}
+	if maxPortStr := os.Getenv("WEBRTC_UDP_PORT_MAX"); maxPortStr != "" {
+		maxPort, err := strconv.ParseUint(maxPortStr, 10, 16)
+		if err == nil {
+			webrtcPortMax = uint16(maxPort)
+		} else {
+			log.Printf("Invalid WEBRTC_UDP_PORT_MAX value: %v", err)
+		}
+	}
+
+	// Create a SettingEngine and configure the port range
+	settingEngine := webrtc.SettingEngine{}
+
+	// Register the H264 codec
+	mediaEngine := &webrtc.MediaEngine{}
+	err := mediaEngine.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264, ClockRate: 90000},
+		PayloadType:        96,
+	}, webrtc.RTPCodecTypeVideo)
+	if err != nil {
+		log.Fatalf("Failed to register H264 codec: %v", err)
+	}
+
+	// Force IPv6
+	settingEngine.SetNetworkTypes([]webrtc.NetworkType{
+		webrtc.NetworkTypeUDP6,
+		webrtc.NetworkTypeTCP6,
+		webrtc.NetworkTypeUDP4,
+		webrtc.NetworkTypeTCP4,
+	})
+
+	webrtcAPI = webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine), webrtc.WithSettingEngine(settingEngine))
+
+	// Set the listen address for the ICE agent
+	// This is crucial for Docker environments where the container's internal IP is not accessible from the outside.
+	udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
+		IP:   net.ParseIP(listenAddress),
+		Port: 0, // Listen on a random port, the mux will handle it
+	})
+	if err != nil {
+		log.Fatalf("Failed to create UDP listener: %v", err)
+	}
+
+	udpMux := webrtc.NewICEUDPMux(nil, udpListener)
+	settingEngine.SetICEUDPMux(udpMux)
+
+	if webrtcPortMin > 0 && webrtcPortMax > 0 {
+		if webrtcPortMin > webrtcPortMax {
+			log.Fatal("WEBRTC_UDP_PORT_MIN cannot be greater than WEBRTC_UDP_PORT_MAX")
+		}
+		err := settingEngine.SetEphemeralUDPPortRange(webrtcPortMin, webrtcPortMax)
+		if err != nil {
+			log.Fatalf("Failed to set WebRTC port range: %v", err)
+		}
+		log.Printf("WebRTC UDP port range set to %d-%d on %s", webrtcPortMin, webrtcPortMax, listenAddress)
+	} else {
+		log.Printf("WebRTC UDP port range is not configured, using random ports on %s", listenAddress)
+	}
 
 	u, err := base.ParseURL(rtspURL)
 	if err != nil {
@@ -210,7 +284,7 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new PeerConnection
-	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	peerConnection, err := webrtcAPI.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		log.Printf("Error creating PeerConnection: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

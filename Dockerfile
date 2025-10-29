@@ -49,8 +49,17 @@ ENV STREAMER_VERSION=go
 ENV WEB_PORT=33002
 # Set a placeholder RTSP URL. Users MUST override this.
 ENV RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1"
+# Set default WebRTC UDP port range. Users should expose this range.
+ENV WEBRTC_UDP_PORT_MIN=33005
+ENV WEBRTC_UDP_PORT_MAX=33099
+# Set the listen address for WebRTC. Leave empty to listen on all interfaces (IPv4/IPv6).
+# For Docker, you might need to set this to the host's public IP if you are not using host network mode.
+ENV WEBRTC_LISTEN_ADDRESS=""
 
-# Expose the default port
+# Expose the default web port.
+# IMPORTANT: You must also expose the UDP port range defined by
+# WEBRTC_UDP_PORT_MIN and WEBRTC_UDP_PORT_MAX in your `docker run` command.
+# Example: -p 33005-33099:33005-33099/udp
 EXPOSE ${WEB_PORT}
 
 # The entrypoint script will decide which application to run
