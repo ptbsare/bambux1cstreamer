@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"log"
@@ -52,6 +53,11 @@ func (m *StreamManager) run() {
 		c := &gortsplib.Client{
 			Scheme: m.rtspURL.Scheme,
 			Host:   m.rtspURL.Host,
+		}
+
+		// Skip TLS certificate verification for rtsps streams, as printers use self-signed certs.
+		if c.Scheme == "rtsps" {
+			c.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 		}
 
 		err := c.Start()
