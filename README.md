@@ -10,11 +10,13 @@ This repository now includes two versions of the streamer:
 
 ## Features
 
-- **Solves Connection Limit**: Maintains a single, stable connection to the printer's RTSPS stream, allowing unlimited clients to view the feed through the proxy.
-- **Low Latency Web Stream**: Uses WebRTC to stream video directly to browsers, offering low latency and high performance.
-- **High-Quality Passthrough (Go version)**: The Go version avoids transcoding, delivering the original, lossless video quality from the printer to your browser.
+- **Solves Connection Limit**: Maintains a single, stable connection to the printer's RTSPS stream, allowing unlimited clients to view the feed.
+- **Dual Streaming Protocols**: Re-streams the video feed simultaneously via:
+  - **WebRTC**: For low-latency, in-browser viewing on a simple web page.
+  - **RTSP**: For compatibility with media players like VLC, FFplay, or security systems like Frigate.
+- **High-Quality Passthrough (Go version)**: The Go version avoids transcoding, delivering the original, lossless video quality from the printer to all clients.
 - **Automatic Reconnection**: If the connection to the printer is lost, the application will automatically try to reconnect.
-- **Easy Deployment**: Optimized for Docker, allowing for quick and easy setup with support for both Go and Python backends.
+- **Easy Deployment**: Optimized for Docker, allowing for quick and easy setup.
 - **Embeddable Web Interface**: Provides a clean, simple web page to view the live stream, which can be easily embedded in other applications like Home Assistant using an iframe.
 - **CI/CD Ready**: Includes a GitHub Actions workflow to automatically build and publish a `beta` image to GitHub Container Registry (GHCR) on every push to the `main` branch.
 
@@ -31,7 +33,8 @@ We provide two main image tags on GitHub Container Registry:
     ```bash
     docker run -d \
       --name bambu-streamer \
-      -p 33002:33002 \
+      -p 33003:33003 \
+      -p 8554:8554 \
       -p 33005-33099:33005-33099/udp \
       -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
       --restart unless-stopped \
@@ -43,7 +46,8 @@ We provide two main image tags on GitHub Container Registry:
     ```bash
     docker run -d \
       --name bambu-streamer-python \
-      -p 33002:33002 \
+      -p 33003:33003 \
+      -p 8554:8554 \
       -p 33005-33099:33005-33099/udp \
       -e STREAMER_VERSION="python" \
       -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
@@ -52,7 +56,8 @@ We provide two main image tags on GitHub Container Registry:
     ```
 
 3.  **View the stream:**
-    Open your web browser and navigate to `http://<your_docker_host_ip>:33002`.
+    - **Web Browser**: Open `http://<your_docker_host_ip>:33003`.
+    - **RTSP Player (e.g., VLC)**: Open `rtsp://<your_docker_host_ip>:8554/stream`.
 
 ### Building from Source
 
@@ -69,7 +74,8 @@ We provide two main image tags on GitHub Container Registry:
 | Variable                  | Description                                                                                                 | Default                                                                    |
 |---------------------------|-------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
 | `RTSP_URL`                | **Required**. The full RTSPS URL of your Bambu Lab printer's live stream.                                   | `rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1` (placeholder) |
-| `WEB_PORT`                | The port on which the web server will listen inside the container.                                          | `33002`                                                                    |
+| `WEB_PORT`                | The port for the WebRTC web server.                                                                         | `33003`                                                                    |
+| `RTSP_PROXY_PORT`         | The port for the RTSP proxy server.                                                                         | `8554`                                                                     |
 | `STREAMER_VERSION`        | The version of the streamer to run. Can be `go` or `python`.                                                | `go`                                                                       |
 | `WEBRTC_UDP_PORT_MIN`     | The minimum UDP port for WebRTC connections.                                                                | `33005`                                                                    |
 | `WEBRTC_UDP_PORT_MAX`     | The maximum UDP port for WebRTC connections.                                                                | `33099`                                                                    |

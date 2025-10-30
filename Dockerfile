@@ -52,15 +52,16 @@ ENV RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1"
 # Set default WebRTC UDP port range. Users should expose this range.
 ENV WEBRTC_UDP_PORT_MIN=33005
 ENV WEBRTC_UDP_PORT_MAX=33099
-# Set the listen address for WebRTC. Leave empty to listen on all interfaces (IPv4/IPv6).
-# For Docker, you might need to set this to the host's public IP if you are not using host network mode.
-ENV WEBRTC_LISTEN_ADDRESS=""
+# Set default RTSP proxy port
+ENV RTSP_PROXY_PORT=8554
 
-# Expose the default web port.
+# Expose the default web port and RTSP proxy port.
 # IMPORTANT: You must also expose the UDP port range defined by
 # WEBRTC_UDP_PORT_MIN and WEBRTC_UDP_PORT_MAX in your `docker run` command.
 # Example: -p 33005-33099:33005-33099/udp
 EXPOSE ${WEB_PORT}
+EXPOSE ${RTSP_PROXY_PORT}
+EXPOSE ${RTSP_PROXY_PORT}
 
 # The entrypoint script will decide which application to run
 ENTRYPOINT ["./entrypoint.sh"]

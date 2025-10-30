@@ -3,9 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log"
-
 	"net/http"
 	"os"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/bluenviron/gortsplib/v5/pkg/base"
 	"github.com/bluenviron/gortsplib/v5/pkg/description"
 	"github.com/bluenviron/gortsplib/v5/pkg/format"
+
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
 )
@@ -24,6 +24,7 @@ import (
 var (
 	rtspURL       = os.Getenv("RTSP_URL")
 	webPort       = "33003" // Use a different port than the python version
+	rtspProxyPort = "8554"
 	webrtcPortMin uint16
 	webrtcPortMax uint16
 	webrtcAPI     *webrtc.API
@@ -31,11 +32,13 @@ var (
 
 // StreamManager manages a single RTSP connection and broadcasts H264 frames to multiple listeners.
 type StreamManager struct {
-	lock      sync.RWMutex
-	listeners map[io.Writer]struct{}
-	rtspURL   *base.URL
-	format    *format.H264
-	media     *description.Media
+	lock            sync.RWMutex
+	webrtcListeners map[*webrtc.TrackLocalStaticRTP]struct{}
+	rtspURL         *base.URL
+	format          *format.H264
+	media           *description.Media
+	rtspStream      *gortsplib.ServerStream
+	rtspServer      *gortsplib.Server
 }
 
 var streamManager *StreamManager
@@ -43,8 +46,8 @@ var streamManager *StreamManager
 // NewStreamManager creates and starts a new StreamManager.
 func NewStreamManager(u *base.URL) *StreamManager {
 	m := &StreamManager{
-		listeners: make(map[io.Writer]struct{}),
-		rtspURL:   u,
+		webrtcListeners: make(map[*webrtc.TrackLocalStaticRTP]struct{}),
+		rtspURL:         u,
 	}
 	go m.run()
 	return m
@@ -101,6 +104,22 @@ func (m *StreamManager) run() {
 		m.lock.Lock()
 		m.format = h264Format
 		m.media = h264Media
+
+		// create the RTSP stream
+		m.rtspStream = &gortsplib.ServerStream{
+			Server: m.rtspServer,
+			Desc: &description.Session{
+				Medias: []*description.Media{m.media},
+			},
+		}
+		err = m.rtspStream.Initialize()
+		if err != nil {
+			log.Printf("Error initializing RTSP stream: %v", err)
+			c.Close()
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
 		m.lock.Unlock()
 
 		c.OnPacketRTPAny(func(medi *description.Media, forma format.Format, pkt *rtp.Packet) {
@@ -112,14 +131,18 @@ func (m *StreamManager) run() {
 
 			m.lock.RLock()
 			defer m.lock.RUnlock()
-			for l := range m.listeners {
-				// Use WriteRTP to forward the packet with its header
-				if track, ok := l.(*webrtc.TrackLocalStaticRTP); ok {
-					err := track.WriteRTP(pkt)
-					if err != nil {
-						// log.Printf("Error writing RTP to track: %v", err)
-					}
+
+			// Forward packet to all WebRTC listeners
+			for track := range m.webrtcListeners {
+				err := track.WriteRTP(pkt)
+				if err != nil {
+					// log.Printf("Error writing RTP to track: %v", err)
 				}
+			}
+
+			// Forward packet to the RTSP stream. It will then distribute it to all listeners.
+			if m.rtspStream != nil {
+				m.rtspStream.WritePacketRTP(medi, pkt)
 			}
 		})
 
@@ -138,24 +161,76 @@ func (m *StreamManager) run() {
 		m.lock.Lock()
 		m.format = nil
 		m.media = nil
+		m.rtspStream = nil
 		m.lock.Unlock()
 	}
 }
 
-// AddListener registers a new writer to receive H264 frames.
-func (m *StreamManager) AddListener(writer io.Writer) {
+// AddWebRTCListener registers a new WebRTC track to receive H264 frames.
+func (m *StreamManager) AddWebRTCListener(track *webrtc.TrackLocalStaticRTP) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.listeners[writer] = struct{}{}
-	log.Printf("Listener added. Total listeners: %d", len(m.listeners))
+	m.webrtcListeners[track] = struct{}{}
+	log.Printf("WebRTC listener added. Total listeners: %d", len(m.webrtcListeners))
 }
 
-// RemoveListener unregisters a writer.
-func (m *StreamManager) RemoveListener(writer io.Writer) {
+// RemoveWebRTCListener unregisters a WebRTC track.
+func (m *StreamManager) RemoveWebRTCListener(track *webrtc.TrackLocalStaticRTP) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	delete(m.listeners, writer)
-	log.Printf("Listener removed. Total listeners: %d", len(m.listeners))
+	delete(m.webrtcListeners, track)
+	log.Printf("WebRTC listener removed. Total listeners: %d", len(m.webrtcListeners))
+}
+
+// serverHandler implements the gortsplib.ServerHandler interface.
+type serverHandler struct{}
+
+func (h *serverHandler) OnDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx) (*base.Response, *gortsplib.ServerStream, error) {
+	log.Printf("describe request for path %q", ctx.Path)
+
+	if ctx.Path != "/stream" {
+		return &base.Response{
+			StatusCode: base.StatusNotFound,
+		}, nil, fmt.Errorf("path not found")
+	}
+
+	// Wait until the stream is ready
+	for i := 0; i < 100; i++ { // Wait up to 10 seconds
+		streamManager.lock.RLock()
+		ready := streamManager.rtspStream != nil
+		streamManager.lock.RUnlock()
+		if ready {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	streamManager.lock.RLock()
+	defer streamManager.lock.RUnlock()
+
+	if streamManager.rtspStream == nil {
+		return &base.Response{
+			StatusCode: base.StatusNotFound,
+		}, nil, fmt.Errorf("stream not ready")
+	}
+
+	return &base.Response{
+		StatusCode: base.StatusOK,
+	}, streamManager.rtspStream, nil
+}
+
+func (h *serverHandler) OnSetup(ctx *gortsplib.ServerHandlerOnSetupCtx) (*base.Response, *gortsplib.ServerStream, error) {
+	log.Printf("setup request for path %q", ctx.Path)
+	return &base.Response{StatusCode: base.StatusOK}, streamManager.rtspStream, nil
+}
+
+func (h *serverHandler) OnPlay(ctx *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, error) {
+	log.Printf("play request for path %q", ctx.Path)
+	return &base.Response{StatusCode: base.StatusOK}, nil
+}
+
+func (h *serverHandler) OnSessionClose(ctx *gortsplib.ServerHandlerOnSessionCloseCtx) {
+	log.Printf("session closed")
 }
 
 func main() {
@@ -164,6 +239,9 @@ func main() {
 	}
 	if p := os.Getenv("WEB_PORT"); p != "" {
 		webPort = p
+	}
+	if p := os.Getenv("RTSP_PROXY_PORT"); p != "" {
+		rtspProxyPort = p
 	}
 	if minPortStr := os.Getenv("WEBRTC_UDP_PORT_MIN"); minPortStr != "" {
 		minPort, err := strconv.ParseUint(minPortStr, 10, 16)
@@ -230,10 +308,22 @@ func main() {
 	http.HandleFunc("/offer", handleOffer)
 
 	log.Printf("Starting web server on http://0.0.0.0:%s", webPort)
-	err = http.ListenAndServe(":"+webPort, nil)
-	if err != nil {
-		log.Fatalf("Failed to start web server: %v", err)
+	go func() {
+		if err := http.ListenAndServe(":"+webPort, nil); err != nil {
+			log.Fatalf("Failed to start web server: %v", err)
+		}
+	}()
+
+	// Create a new gortsplib server
+	s := &gortsplib.Server{
+		Handler:     &serverHandler{},
+		RTSPAddress: ":" + rtspProxyPort,
 	}
+	streamManager.rtspServer = s
+
+	log.Printf("Starting RTSP proxy on rtsp://0.0.0.0:%s", rtspProxyPort)
+	// start server and wait until a fatal error
+	panic(s.StartAndWait())
 }
 
 func handleOffer(w http.ResponseWriter, r *http.Request) {
@@ -326,12 +416,12 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Add the track to the stream manager
-	streamManager.AddListener(videoTrack)
+	streamManager.AddWebRTCListener(videoTrack)
 
 	peerConnection.OnConnectionStateChange(func(s webrtc.PeerConnectionState) {
 		log.Printf("Peer Connection State has changed: %s", s.String())
 		if s == webrtc.PeerConnectionStateFailed || s == webrtc.PeerConnectionStateDisconnected || s == webrtc.PeerConnectionStateClosed {
-			streamManager.RemoveListener(videoTrack)
+			streamManager.RemoveWebRTCListener(videoTrack)
 			peerConnection.Close()
 		}
 	})
