@@ -1,5 +1,0 @@
-aiohttp
-aiortc
-uvicorn
-opencv-python-headless
-numpy

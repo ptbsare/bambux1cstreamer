@@ -4,9 +4,6 @@
 
 A lightweight, self-hosted proxy to re-stream the RTSPS video from a Bambu Lab X1C 3D printer. This application addresses the printer's firmware bug that limits the number of concurrent RTSP connections by maintaining a single, persistent connection and re-streaming it to multiple clients via WebRTC.
 
-This repository now includes two versions of the streamer:
-- **Go (Default, Recommended)**: A high-performance version that directly passes through the H.264 stream without transcoding. It offers the best quality, lowest latency, and minimal CPU usage.
-- **Python**: The original implementation that decodes and re-encodes the stream. It is kept for compatibility but has higher CPU usage and potential for quality loss.
 
 ## Features
 
@@ -29,7 +26,7 @@ We provide two main image tags on GitHub Container Registry:
 - `beta`: Built automatically from the latest commit on the `main` branch. Use this for testing new features.
 
 1.  **Run the Docker container (Recommended):**
-    Replace `PRINTER_IP` and `LAN_ACCESS_CODE` with your Bambu Lab printer's IP address and access code. By default, this will run the high-performance Go version.
+    Replace `PRINTER_IP` and `LAN_ACCESS_CODE` with your Bambu Lab printer's IP address and access code.
     ```bash
     docker run -d \
       --name bambu-streamer \
@@ -41,28 +38,14 @@ We provide two main image tags on GitHub Container Registry:
       ghcr.io/ptbsare/bambux1cstreamer:latest
     ```
 
-2.  **To run the legacy Python version:**
-    Set the `STREAMER_VERSION` environment variable to `python`.
-    ```bash
-    docker run -d \
-      --name bambu-streamer-python \
-      -p 33003:33003 \
-      -p 8554:8554 \
-      -p 33005-33099:33005-33099/udp \
-      -e STREAMER_VERSION="python" \
-      -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
-      --restart unless-stopped \
-      ghcr.io/ptbsare/bambux1cstreamer:latest
-    ```
-
-3.  **View the stream:**
+2.  **View the stream:**
     - **Web Browser**: Open `http://<your_docker_host_ip>:33003`.
     - **RTSP Player (e.g., VLC)**: Open `rtsp://<your_docker_host_ip>:8554/stream`.
 
 ### Building from Source
 
 1.  **Build the Docker image:**
-    This will build a multi-platform image containing both the Go and Python applications.
+    This will build the Go application image.
     ```bash
     docker build -t bambux1cstreamer .
     ```
@@ -76,7 +59,6 @@ We provide two main image tags on GitHub Container Registry:
 | `RTSP_URL`                | **Required**. The full RTSPS URL of your Bambu Lab printer's live stream.                                   | `rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1` (placeholder) |
 | `WEB_PORT`                | The port for the WebRTC web server.                                                                         | `33003`                                                                    |
 | `RTSP_PROXY_PORT`         | The port for the RTSP proxy server.                                                                         | `8554`                                                                     |
-| `STREAMER_VERSION`        | The version of the streamer to run. Can be `go` or `python`.                                                | `go`                                                                       |
 | `WEBRTC_UDP_PORT_MIN`     | The minimum UDP port for WebRTC connections.                                                                | `33005`                                                                    |
 | `WEBRTC_UDP_PORT_MAX`     | The maximum UDP port for WebRTC connections.                                                                | `33099`                                                                    |
 

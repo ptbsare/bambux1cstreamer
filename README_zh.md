@@ -4,9 +4,6 @@
 
 一个轻量级的、自托管的代理服务，用于转播拓竹 X1C 3D打印机的RSTPS视频流。本项目旨在解决打印机固件存在的RTSP并发连接数限制的Bug。它通过维持一个与打印机的持久连接，并将视频流通过WebRTC技术转播给多个客户端。
 
-本仓库现在包含两个版本的视频流服务：
-- **Go (默认, 推荐)**: 一个高性能版本，直接将 H.264 码流“直通”传输，不涉及转码。它能提供最佳的画质、最低的延迟和最少的CPU占用。
-- **Python**: 最初的实现版本，它会解码视频流再重新编码。保留它是为了兼容性，但它的CPU占用更高，并可能导致画质损失。
 
 ## 功能特性
 
@@ -29,7 +26,7 @@
 - `beta`: 基于`main`分支的最新代码自动构建，用于测试新功能。
 
 1.  **运行 Docker 容器 (推荐):**
-    请将 `PRINTER_IP` 和 `LAN_ACCESS_CODE` 替换为你的拓竹打印机的实际IP地址和局域网访问码。默认情况下，这将运行高性能的 Go 版本。
+    请将 `PRINTER_IP` 和 `LAN_ACCESS_CODE` 替换为你的拓竹打印机的实际IP地址和局域网访问码。
     ```bash
     docker run -d \
       --name bambu-streamer \
@@ -41,28 +38,14 @@
       ghcr.io/ptbsare/bambux1cstreamer:latest
     ```
 
-2.  **运行旧版 Python 版本:**
-    将 `STREAMER_VERSION` 环境变量设置为 `python`。
-    ```bash
-    docker run -d \
-      --name bambu-streamer-python \
-      -p 33003:33003 \
-      -p 8554:8554 \
-      -p 33005-33099:33005-33099/udp \
-      -e STREAMER_VERSION="python" \
-      -e RTSP_URL="rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1" \
-      --restart unless-stopped \
-      ghcr.io/ptbsare/bambux1cstreamer:latest
-    ```
-
-3.  **观看视频流:**
+2.  **观看视频流:**
     - **网页浏览器**: 打开 `http://<你的Docker主机IP>:33003`。
     - **RTSP 播放器 (例如 VLC)**: 打开 `rtsp://<你的Docker主机IP>:8554/stream`。
 
 ### 从源码构建
 
 1.  **构建 Docker 镜像:**
-    这将构建一个包含 Go 和 Python 两个应用的多平台镜像。
+    这将构建 Go 应用的镜像。
     ```bash
     docker build -t bambux1cstreamer .
     ```
@@ -76,7 +59,6 @@
 | `RTSP_URL`                | **必需**. 你的拓竹打印机视频流的完整RSTPS地址。                                            | `rtsps://bblp:LAN_ACCESS_CODE@PRINTER_IP:322/streaming/live/1` (占位符)      |
 | `WEB_PORT`                | WebRTC 网页服务的端口。                                                                    | `33003`                                                                    |
 | `RTSP_PROXY_PORT`         | RTSP 代理服务的端口。                                                                      | `8554`                                                                     |
-| `STREAMER_VERSION`        | 要运行的服务版本，可选值为 `go` 或 `python`。                                              | `go`                                                                       |
 | `WEBRTC_UDP_PORT_MIN`     | WebRTC 连接使用的最小 UDP 端口。                                                           | `33005`                                                                    |
 | `WEBRTC_UDP_PORT_MAX`     | WebRTC 连接使用的最大 UDP 端口。                                                           | `33099`                                                                    |
 
