@@ -26,7 +26,6 @@ var (
 	webPort       = "33003" // Use a different port than the python version
 	webrtcPortMin uint16
 	webrtcPortMax uint16
-	listenAddress = "" // Listen on all interfaces by default (IPv4 and IPv6)
 	webrtcAPI     *webrtc.API
 )
 
@@ -165,9 +164,6 @@ func main() {
 	}
 	if p := os.Getenv("WEB_PORT"); p != "" {
 		webPort = p
-	}
-	if l := os.Getenv("WEBRTC_LISTEN_ADDRESS"); l != "" {
-		listenAddress = l
 	}
 	if minPortStr := os.Getenv("WEBRTC_UDP_PORT_MIN"); minPortStr != "" {
 		minPort, err := strconv.ParseUint(minPortStr, 10, 16)
